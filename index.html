@@ -353,21 +353,24 @@
 
       // PocketBase Authentication and Subscription
       async function authenticateAndSubscribe() {
+    try {
+        // Authenticate the user
+        const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
+
+        pbLog('User Authenticated:', JSON.stringify(authData));
+
+        // Clear any existing subscription
         try {
-          // Authenticate the user
-          const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
-
-          pbLog('User Authenticated:', JSON.stringify(authData));
-
-          // Clear any existing subscription
-          try {
             pb.collection('longShort_duplicate').unsubscribe();
-          } catch (e) {
+        } catch (e) {
             // Ignore errors from unsubscribe
-          }
+        }
 
-          // Subscribe to changes in the longShort collection
-          pb.collection('longShort_duplicate').subscribe('*', function (e) {
+        // Store processed record IDs
+        const processedRecords = new Set();
+
+        // Subscribe to changes in the longShort collection
+        pb.collection('longShort_duplicate').subscribe('*', async function (e) {
             // Log the event
             pbLog('Action:', e.action);
             pbLog('Record ID:', e.record.id);
@@ -375,13 +378,13 @@
 
             // Only process 'create' actions and only if we have a connection
             if (e.action !== 'create' || !currentConnection) {
-              return;
+                return;
             }
 
             // Check if we've already processed this record
             if (processedRecords.has(e.record.id)) {
-              pbLog(`Already processed record ${e.record.id}, skipping`);
-              return;
+                pbLog(`Already processed record ${e.record.id}, skipping`);
+                return;
             }
 
             // Add the record to our processed set
@@ -389,30 +392,43 @@
             
             // Limit the size of the set to prevent memory issues
             if (processedRecords.size > 100) {
-              const firstItem = processedRecords.values().next().value;
-              processedRecords.delete(firstItem);
+                const firstItem = processedRecords.values().next().value;
+                processedRecords.delete(firstItem);
             }
 
-            // Execute the appropriate trade based on the longShort value
+            // Close positions for BT Short or BT Long
+            if (e.record.longShort === 'BT Short' || e.record.longShort === 'BT Long') {
+                try {
+                    const symbol = tradeSymbolInput.value.trim() || 'BTCUSDm';
+                    pbLog(`Attempting to close positions for ${symbol} due to ${e.record.longShort}`);
+                    
+                    const closeResult = await currentConnection.closePositionsBySymbol(symbol);
+                    pbLog(`Positions closed result: ${JSON.stringify(closeResult)}`);
+                } catch (closeError) {
+                    pbLog(`Error closing positions: ${closeError.message}`);
+                }
+                return;
+            }
+
+            // Execute trades for UT signals
             if (e.record.longShort === 'UT Long') {
-              pbLog(`Processing Long signal for record ${e.record.id}, executing BUY`);
-              executeTrade('buy');
+                pbLog(`Processing Long signal for record ${e.record.id}, executing BUY`);
+                executeTrade('buy');
             } else if (e.record.longShort === 'UT Short') {
-              pbLog(`Processing Short signal for record ${e.record.id}, executing SELL`);
-              executeTrade('sell');
+                pbLog(`Processing Short signal for record ${e.record.id}, executing SELL`);
+                executeTrade('sell');
             } else {
-              pbLog(`Unknown longShort value: ${e.record.longShort}, no action taken`);
+                pbLog(`Unknown longShort value: ${e.record.longShort}, no action taken`);
             }
-          });
+        });
 
-          pbLog('Successfully subscribed to longShort_duplicate collection');
+        pbLog('Successfully subscribed to longShort_duplicate collection');
 
-        } catch (error) {
-          pbLog('Authentication failed:', error.message);
-          console.error('Authentication failed:', error);
-        }
-      }
-
+    } catch (error) {
+        pbLog('Authentication failed:', error.message);
+        console.error('Authentication failed:', error);
+    }
+}
       // Position Display Function
       function displayPositions(positions) {
         positionsTbody.innerHTML = '';
