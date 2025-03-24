@@ -73,7 +73,7 @@
   <div class="right-panel">
     <h1>PocketBase Real-Time Connection</h1>
     <div id="pocketbase-connect">
-      <button onclick="authenticateAndSubscribe()">Connect to PocketBase</button>
+      <button id="connect-pocketbase">Connect to PocketBase</button>
     </div>
     <div class="section">
       <h2>PocketBase Logs</h2>
@@ -83,168 +83,173 @@
 
   <script src="https://unpkg.com/metaapi.cloud-sdk"></script>
   <script>
-    const infoElement = document.getElementById('info');
-    const positionsContainer = document.getElementById('positions-container');
-    
-    function log() {
-      if(typeof arguments[1] === 'object'){
-        arguments[1] = JSON.stringify(arguments[1]);
+    document.addEventListener('DOMContentLoaded', function() {
+      // PocketBase Script
+      const pb = new PocketBase('https://databases-pocketbase.rmtdmw.shanmuganathan.dev');
+      const pocketbaseLogs = document.getElementById('pocketbase-logs');
+      const connectButton = document.getElementById('connect-pocketbase');
+
+      function pbLog() {
+        const el = document.createElement('div');
+        el.innerHTML = [].slice.call(arguments).join(' ');
+        pocketbaseLogs.appendChild(el);
+        console.log(...arguments);
       }
-      const el = document.createElement('div');
-      el.innerHTML = [].join.call(arguments, ' ');
-      infoElement.appendChild(el);
-      console.log(...arguments);
-    }
-    
-    function displayPositions(positions) {
-      positionsContainer.innerHTML = '';
-      if (Object.keys(positions).length === 0) {
-        positionsContainer.innerHTML = '<p>No open positions</p>';
-        return;
+
+      async function authenticateAndSubscribe() {
+        try {
+          // Authenticate the user
+          const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
+
+          pbLog('User Authenticated:', JSON.stringify(authData));
+
+          // Subscribe to changes in the longShort collection
+          pb.collection('longShort_duplicate').subscribe('*', function (e) {
+            pbLog('Action:', e.action);
+            pbLog('Record:', JSON.stringify(e.record));
+          }, {
+            // Optional: other options like filter, expand, custom headers, etc.
+          });
+
+        } catch (error) {
+          pbLog('Authentication failed:', error.message);
+          console.error('Authentication failed:', error);
+        }
+      }
+
+      // Add event listener to the connect button
+      connectButton.addEventListener('click', authenticateAndSubscribe);
+
+      // MetaAPI Script
+      const infoElement = document.getElementById('info');
+      const positionsContainer = document.getElementById('positions-container');
+      
+      function log() {
+        if(typeof arguments[1] === 'object'){
+          arguments[1] = JSON.stringify(arguments[1]);
+        }
+        const el = document.createElement('div');
+        el.innerHTML = [].join.call(arguments, ' ');
+        infoElement.appendChild(el);
+        console.log(...arguments);
       }
       
-      for (const id in positions) {
-        const position = positions[id];
-        const positionCard = document.createElement('div');
-        positionCard.className = 'position-card';
-        positionCard.id = `position-${id}`;
+      function displayPositions(positions) {
+        positionsContainer.innerHTML = '';
+        if (Object.keys(positions).length === 0) {
+          positionsContainer.innerHTML = '<p>No open positions</p>';
+          return;
+        }
         
-        const profit = parseFloat(position.profit);
-        const profitColor = profit >= 0 ? 'green' : 'red';
-        
-        positionCard.innerHTML = `
-          <h3>${position.symbol}</h3>
-          <p>Type: ${position.type}</p>
-          <p>Volume: ${position.volume}</p>
-          <p>Open Price: ${position.openPrice}</p>
-          <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
-          <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
-          <p>Swap: ${position.swap}</p>
-          <p>Time: ${new Date(position.time).toLocaleString()}</p>
-        `;
-        
-        positionsContainer.appendChild(positionCard);
-      }
-    }
-    
-    function highlightUpdatedPosition(positionId) {
-      const element = document.getElementById(`position-${positionId}`);
-      if (element) {
-        element.classList.remove('updated');
-        void element.offsetWidth; // Trigger reflow to restart animation
-        element.classList.add('updated');
-      }
-    }
-    
-    const token = 'eyJhs';
-    const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
-    const api = new MetaApi.default(token);
-    
-    async function testMetaApiSynchronization() {
-      try {
-        const account = await api.metatraderAccountApi.getAccount(accountId);
-        log('Waiting for API server to connect to broker (may take couple of minutes)');
-        await account.waitConnected();
-        
-        // connect to MetaApi API
-        let connection = account.getStreamingConnection();
-        
-        // Create a base handler that handles any method call
-        const baseHandler = {
-          get: function(target, prop) {
-            if (prop in target) {
-              return target[prop];
-            }
-            return function() {};
-          }
-        };
-        
-        // Your actual handlers for positions
-        const myHandlers = {
-          onPositionsReplaced: function(positions) {
-            log('Positions replaced');
-            displayPositions(positions);
-          },
-          onPositionUpdated: function(position) {
-            log('Position updated', position.id);
-            // Update the specific position in the display
-            let terminalState = connection.terminalState;
-            displayPositions(terminalState.positions);
-            highlightUpdatedPosition(position.id);
-          },
-          onPositionRemoved: function(positionId) {
-            log('Position removed', positionId);
-            // Refresh positions display
-            let terminalState = connection.terminalState;
-            displayPositions(terminalState.positions);
-          }
-        };
-        
-        // Create a proxy that will handle all method calls
-        const listener = new Proxy(myHandlers, baseHandler);
-        
-        // Add the listener to the connection
-        connection.addSynchronizationListener(listener);
-        
-        await connection.connect();
-        
-        // wait until terminal state synchronized to the local state
-        log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
-        await connection.waitSynchronized();
-        
-        // access local copy of terminal state
-        log('Testing terminal state access');
-        let terminalState = connection.terminalState;
-        log('connected:', terminalState.connected);
-        log('connected to broker:', terminalState.connectedToBroker);
-        log('account information:', terminalState.accountInformation);
-        
-        // Initial display of positions
-        displayPositions(terminalState.positions);
-        
-        log('Real-time position tracking is active');
-        
-      } catch (err) {
-        log('Error:', err.message);
-        console.error(err);
-      }
-    }
-    
-    testMetaApiSynchronization();
-
-    // PocketBase Script
-    const pb = new PocketBase('https://databases-pocketbase.rmtdmw.shanmuganathan.dev');
-    const pocketbaseLogs = document.getElementById('pocketbase-logs');
-
-    function pbLog() {
-      const el = document.createElement('div');
-      el.innerHTML = [].slice.call(arguments).join(' ');
-      pocketbaseLogs.appendChild(el);
-      console.log(...arguments);
-    }
-
-    async function authenticateAndSubscribe() {
-      try {
-        // Authenticate the user
-        const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
-
-        pbLog('User Authenticated:', JSON.stringify(authData));
-
-        // Subscribe to changes in the longShort collection
-        pb.collection('longShort_duplicate').subscribe('*', function (e) {
-          pbLog('Action:', e.action);
-          pbLog('Record:', JSON.stringify(e.record));
+        for (const id in positions) {
+          const position = positions[id];
+          const positionCard = document.createElement('div');
+          positionCard.className = 'position-card';
+          positionCard.id = `position-${id}`;
           
-          // You can add additional logic here if needed
-        }, {
-          // Optional: other options like filter, expand, custom headers, etc.
-        });
-
-      } catch (error) {
-        pbLog('Authentication failed:', error.message);
-        console.error('Authentication failed:', error);
+          const profit = parseFloat(position.profit);
+          const profitColor = profit >= 0 ? 'green' : 'red';
+          
+          positionCard.innerHTML = `
+            <h3>${position.symbol}</h3>
+            <p>Type: ${position.type}</p>
+            <p>Volume: ${position.volume}</p>
+            <p>Open Price: ${position.openPrice}</p>
+            <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
+            <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
+            <p>Swap: ${position.swap}</p>
+            <p>Time: ${new Date(position.time).toLocaleString()}</p>
+          `;
+          
+          positionsContainer.appendChild(positionCard);
+        }
       }
-    }
+      
+      function highlightUpdatedPosition(positionId) {
+        const element = document.getElementById(`position-${positionId}`);
+        if (element) {
+          element.classList.remove('updated');
+          void element.offsetWidth; // Trigger reflow to restart animation
+          element.classList.add('updated');
+        }
+      }
+      
+      const token = 'eyJhs';
+      const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
+      const api = new MetaApi.default(token);
+      
+      async function testMetaApiSynchronization() {
+        try {
+          const account = await api.metatraderAccountApi.getAccount(accountId);
+          log('Waiting for API server to connect to broker (may take couple of minutes)');
+          await account.waitConnected();
+          
+          // connect to MetaApi API
+          let connection = account.getStreamingConnection();
+          
+          // Create a base handler that handles any method call
+          const baseHandler = {
+            get: function(target, prop) {
+              if (prop in target) {
+                return target[prop];
+              }
+              return function() {};
+            }
+          };
+          
+          // Your actual handlers for positions
+          const myHandlers = {
+            onPositionsReplaced: function(positions) {
+              log('Positions replaced');
+              displayPositions(positions);
+            },
+            onPositionUpdated: function(position) {
+              log('Position updated', position.id);
+              // Update the specific position in the display
+              let terminalState = connection.terminalState;
+              displayPositions(terminalState.positions);
+              highlightUpdatedPosition(position.id);
+            },
+            onPositionRemoved: function(positionId) {
+              log('Position removed', positionId);
+              // Refresh positions display
+              let terminalState = connection.terminalState;
+              displayPositions(terminalState.positions);
+            }
+          };
+          
+          // Create a proxy that will handle all method calls
+          const listener = new Proxy(myHandlers, baseHandler);
+          
+          // Add the listener to the connection
+          connection.addSynchronizationListener(listener);
+          
+          await connection.connect();
+          
+          // wait until terminal state synchronized to the local state
+          log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
+          await connection.waitSynchronized();
+          
+          // access local copy of terminal state
+          log('Testing terminal state access');
+          let terminalState = connection.terminalState;
+          log('connected:', terminalState.connected);
+          log('connected to broker:', terminalState.connectedToBroker);
+          log('account information:', terminalState.accountInformation);
+          
+          // Initial display of positions
+          displayPositions(terminalState.positions);
+          
+          log('Real-time position tracking is active');
+          
+        } catch (err) {
+          log('Error:', err.message);
+          console.error(err);
+        }
+      }
+      
+      testMetaApiSynchronization();
+    });
   </script>
 </body>
 </html>
