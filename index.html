@@ -2,14 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MetaAPI Real-Time Trading</title>
+  <title>MetaAPI Real-Time Trading Dashboard</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
     }
-    #info {
+    .left-panel, .right-panel {
+      width: 50%;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .left-panel {
+      background-color: #f0f0f0;
+      border-right: 1px solid #ddd;
+    }
+    .right-panel {
+      background-color: #f9f9f9;
+    }
+    #info, #pocketbase-logs {
       margin-bottom: 20px;
       padding: 10px;
       border: 1px solid #ddd;
@@ -22,11 +37,7 @@
       padding: 15px;
       border: 1px solid #eee;
       border-radius: 5px;
-      background-color: #f9f9f9;
-    }
-    .section h2 {
-      margin-top: 0;
-      color: #333;
+      background-color: #fff;
     }
     .position-card {
       padding: 10px;
@@ -42,146 +53,198 @@
       0% {background-color: #ffff99;}
       100% {background-color: #e9f7ef;}
     }
+    #pocketbase-connect {
+      margin-bottom: 20px;
+    }
   </style>
+  <script src="https://unpkg.com/pocketbase@0.10.0/dist/pocketbase.umd.js"></script>
 </head>
 <body>
-  <h1>MetaAPI Real-Time Trading Dashboard</h1>
-  <div id="info"></div>
-  
-  <div class="section">
-    <h2>Real-Time Positions</h2>
-    <div id="positions-container"></div>
+  <div class="left-panel">
+    <h1>MetaAPI Real-Time Trading Dashboard</h1>
+    <div id="info"></div>
+    
+    <div class="section">
+      <h2>Real-Time Positions</h2>
+      <div id="positions-container"></div>
+    </div>
   </div>
-</body>
-<script src="https://unpkg.com/metaapi.cloud-sdk"></script>
-<script>
-  const infoElement = document.getElementById('info');
-  const positionsContainer = document.getElementById('positions-container');
-  
-  function log() {
-    if(typeof arguments[1] === 'object'){
-      arguments[1] = JSON.stringify(arguments[1]);
-    }
-    const el = document.createElement('div');
-    el.innerHTML = [].join.call(arguments, ' ');
-    infoElement.appendChild(el);
-    console.log(...arguments);
-  }
-  
-  function displayPositions(positions) {
-    positionsContainer.innerHTML = '';
-    if (Object.keys(positions).length === 0) {
-      positionsContainer.innerHTML = '<p>No open positions</p>';
-      return;
+
+  <div class="right-panel">
+    <h1>PocketBase Real-Time Connection</h1>
+    <div id="pocketbase-connect">
+      <button onclick="authenticateAndSubscribe()">Connect to PocketBase</button>
+    </div>
+    <div class="section">
+      <h2>PocketBase Logs</h2>
+      <div id="pocketbase-logs"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/metaapi.cloud-sdk"></script>
+  <script>
+    const infoElement = document.getElementById('info');
+    const positionsContainer = document.getElementById('positions-container');
+    
+    function log() {
+      if(typeof arguments[1] === 'object'){
+        arguments[1] = JSON.stringify(arguments[1]);
+      }
+      const el = document.createElement('div');
+      el.innerHTML = [].join.call(arguments, ' ');
+      infoElement.appendChild(el);
+      console.log(...arguments);
     }
     
-    for (const id in positions) {
-      const position = positions[id];
-      const positionCard = document.createElement('div');
-      positionCard.className = 'position-card';
-      positionCard.id = `position-${id}`;
+    function displayPositions(positions) {
+      positionsContainer.innerHTML = '';
+      if (Object.keys(positions).length === 0) {
+        positionsContainer.innerHTML = '<p>No open positions</p>';
+        return;
+      }
       
-      const profit = parseFloat(position.profit);
-      const profitColor = profit >= 0 ? 'green' : 'red';
-      
-      positionCard.innerHTML = `
-        <h3>${position.symbol}</h3>
-        <p>Type: ${position.type}</p>
-        <p>Volume: ${position.volume}</p>
-        <p>Open Price: ${position.openPrice}</p>
-        <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
-        <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
-        <p>Swap: ${position.swap}</p>
-        <p>Time: ${new Date(position.time).toLocaleString()}</p>
-      `;
-      
-      positionsContainer.appendChild(positionCard);
+      for (const id in positions) {
+        const position = positions[id];
+        const positionCard = document.createElement('div');
+        positionCard.className = 'position-card';
+        positionCard.id = `position-${id}`;
+        
+        const profit = parseFloat(position.profit);
+        const profitColor = profit >= 0 ? 'green' : 'red';
+        
+        positionCard.innerHTML = `
+          <h3>${position.symbol}</h3>
+          <p>Type: ${position.type}</p>
+          <p>Volume: ${position.volume}</p>
+          <p>Open Price: ${position.openPrice}</p>
+          <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
+          <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
+          <p>Swap: ${position.swap}</p>
+          <p>Time: ${new Date(position.time).toLocaleString()}</p>
+        `;
+        
+        positionsContainer.appendChild(positionCard);
+      }
     }
-  }
-  
-  function highlightUpdatedPosition(positionId) {
-    const element = document.getElementById(`position-${positionId}`);
-    if (element) {
-      element.classList.remove('updated');
-      void element.offsetWidth; // Trigger reflow to restart animation
-      element.classList.add('updated');
+    
+    function highlightUpdatedPosition(positionId) {
+      const element = document.getElementById(`position-${positionId}`);
+      if (element) {
+        element.classList.remove('updated');
+        void element.offsetWidth; // Trigger reflow to restart animation
+        element.classList.add('updated');
+      }
     }
-  }
-  
-  const token = 'eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiIwODI2ZTdmNjI2YTNkZWI0MWNjMDlkZmUxZmQwMzJlMCIsImFjY2Vzc1J1bGVzIjpbeyJpZCI6InRyYWRpbmctYWNjb3VudC1tYW5hZ2VtZW50LWFwaSIsIm1ldGhvZHMiOlsidHJhZGluZy1hY2NvdW50LW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVzdC1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcnBjLWFwaSIsIm1ldGhvZHMiOlsibWV0YWFwaS1hcGk6d3M6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVhbC10aW1lLXN0cmVhbWluZy1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOndzOnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJtZXRhc3RhdHMtYXBpIiwibWV0aG9kcyI6WyJtZXRhc3RhdHMtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6InJpc2stbWFuYWdlbWVudC1hcGkiLCJtZXRob2RzIjpbInJpc2stbWFuYWdlbWVudC1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoiY29weWZhY3RvcnktYXBpIiwibWV0aG9kcyI6WyJjb3B5ZmFjdG9yeS1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoibXQtbWFuYWdlci1hcGkiLCJtZXRob2RzIjpbIm10LW1hbmFnZXItYXBpOnJlc3Q6ZGVhbGluZzoqOioiLCJtdC1tYW5hZ2VyLWFwaTpyZXN0OnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJiaWxsaW5nLWFwaSIsIm1ldGhvZHMiOlsiYmlsbGluZy1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfV0sImlnbm9yZVJhdGVMaW1pdHMiOmZhbHNlLCJ0b2tlbklkIjoiMjAyMTAyMTMiLCJpbXBlcnNvbmF0ZWQiOmZhbHNlLCJyZWFsVXNlcklkIjoiMDgyNmU3ZjYyNmEzZGViNDFjYzA5ZGZlMWZkMDMyZTAiLCJpYXQiOjE3NDI3NDA3OTYsImV4cCI6MTc1MDUxNjc5Nn0.Fzi0OI6STSjQnYVL9eXjqoa4pA9CF0V6gbmi-3UYIzL9oQoqXgZwFLgAYMYPsD0Ts6Je_lWGaHzOt5S5GfehpuEAGwLKKYNlNWuAwtoq6ltW0l8CYo8eGKdAr-8Oaw-bQj-nZ4p_hwlUgakXVmb7bnoU7s-D5zk_Aup57WhJBgbTab77HTX5MzvCSwxsXmve3GYpGAQSI6KIC60c__cfXEndH2RMbOInplUkqgFtcQk5Kyn24OnGxq5U6hCVWpOvUY7BcHBljhxlp3pqExy22kLwW8zDaA5qu8WZZzP-KqMHxcVe4RCffS1k8mdbvIce75VdGj31ZknQpYVnBtwdNBRggnTWDeVC3l5XDsfk_uziYu_Byl4Ox8lvQOiRI1Bhpqfxlm2rwh0Y7rG6qWP4q-ol6how6WjHGuki1KHzd7VnFDDh5z8w7X-pJkmMJ2PDAOryhAEYcDUWTeORsgGD6qm3ejv3XsoSbWXL1mwAFTJ0WeibCMq78DYZ67L-JHzYKtUdluv77dtPd-mqai3Xl5d5nFZeT-TSLCHdr84LyMT4wmC8VnQ04QWQmFoVToLqAt0dn-o-S_iuFN2vIGLEBd3m12XKnoVJ6TqShj-0FYhaxRbO5svcHLcNnq0nsUq6mWeUoWlZZwMpbROhSMxPpM0fqyLrTjJwrjW3MHWYkBs';
-  const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
-  const api = new MetaApi.default(token);
-  
-  async function testMetaApiSynchronization() {
-    try {
-      const account = await api.metatraderAccountApi.getAccount(accountId);
-      log('Waiting for API server to connect to broker (may take couple of minutes)');
-      await account.waitConnected();
-      
-      // connect to MetaApi API
-      let connection = account.getStreamingConnection();
-      
-      // Create a base handler that handles any method call
-      const baseHandler = {
-        get: function(target, prop) {
-          if (prop in target) {
-            return target[prop];
+    
+    const token = 'eyJhs';
+    const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
+    const api = new MetaApi.default(token);
+    
+    async function testMetaApiSynchronization() {
+      try {
+        const account = await api.metatraderAccountApi.getAccount(accountId);
+        log('Waiting for API server to connect to broker (may take couple of minutes)');
+        await account.waitConnected();
+        
+        // connect to MetaApi API
+        let connection = account.getStreamingConnection();
+        
+        // Create a base handler that handles any method call
+        const baseHandler = {
+          get: function(target, prop) {
+            if (prop in target) {
+              return target[prop];
+            }
+            return function() {};
           }
-          return function() {};
-        }
-      };
-      
-      // Your actual handlers for positions
-      const myHandlers = {
-        onPositionsReplaced: function(positions) {
-          log('Positions replaced');
-          displayPositions(positions);
-        },
-        onPositionUpdated: function(position) {
-          log('Position updated', position.id);
-          // Update the specific position in the display
-          let terminalState = connection.terminalState;
-          displayPositions(terminalState.positions);
-          highlightUpdatedPosition(position.id);
-        },
-        onPositionRemoved: function(positionId) {
-          log('Position removed', positionId);
-          // Refresh positions display
-          let terminalState = connection.terminalState;
-          displayPositions(terminalState.positions);
-        }
-      };
-      
-      // Create a proxy that will handle all method calls
-      const listener = new Proxy(myHandlers, baseHandler);
-      
-      // Add the listener to the connection
-      connection.addSynchronizationListener(listener);
-      
-      await connection.connect();
-      
-      // wait until terminal state synchronized to the local state
-      log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
-      await connection.waitSynchronized();
-      
-      // access local copy of terminal state
-      log('Testing terminal state access');
-      let terminalState = connection.terminalState;
-      log('connected:', terminalState.connected);
-      log('connected to broker:', terminalState.connectedToBroker);
-      log('account information:', terminalState.accountInformation);
-      
-      // Initial display of positions
-      displayPositions(terminalState.positions);
-      
-      log('Real-time position tracking is active');
-      
-    } catch (err) {
-      log('Error:', err.message);
-      console.error(err);
+        };
+        
+        // Your actual handlers for positions
+        const myHandlers = {
+          onPositionsReplaced: function(positions) {
+            log('Positions replaced');
+            displayPositions(positions);
+          },
+          onPositionUpdated: function(position) {
+            log('Position updated', position.id);
+            // Update the specific position in the display
+            let terminalState = connection.terminalState;
+            displayPositions(terminalState.positions);
+            highlightUpdatedPosition(position.id);
+          },
+          onPositionRemoved: function(positionId) {
+            log('Position removed', positionId);
+            // Refresh positions display
+            let terminalState = connection.terminalState;
+            displayPositions(terminalState.positions);
+          }
+        };
+        
+        // Create a proxy that will handle all method calls
+        const listener = new Proxy(myHandlers, baseHandler);
+        
+        // Add the listener to the connection
+        connection.addSynchronizationListener(listener);
+        
+        await connection.connect();
+        
+        // wait until terminal state synchronized to the local state
+        log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
+        await connection.waitSynchronized();
+        
+        // access local copy of terminal state
+        log('Testing terminal state access');
+        let terminalState = connection.terminalState;
+        log('connected:', terminalState.connected);
+        log('connected to broker:', terminalState.connectedToBroker);
+        log('account information:', terminalState.accountInformation);
+        
+        // Initial display of positions
+        displayPositions(terminalState.positions);
+        
+        log('Real-time position tracking is active');
+        
+      } catch (err) {
+        log('Error:', err.message);
+        console.error(err);
+      }
     }
-  }
-  
-  testMetaApiSynchronization();
-</script>
+    
+    testMetaApiSynchronization();
+
+    // PocketBase Script
+    const pb = new PocketBase('https://databases-pocketbase.rmtdmw.shanmuganathan.dev');
+    const pocketbaseLogs = document.getElementById('pocketbase-logs');
+
+    function pbLog() {
+      const el = document.createElement('div');
+      el.innerHTML = [].slice.call(arguments).join(' ');
+      pocketbaseLogs.appendChild(el);
+      console.log(...arguments);
+    }
+
+    async function authenticateAndSubscribe() {
+      try {
+        // Authenticate the user
+        const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
+
+        pbLog('User Authenticated:', JSON.stringify(authData));
+
+        // Subscribe to changes in the longShort collection
+        pb.collection('longShort_duplicate').subscribe('*', function (e) {
+          pbLog('Action:', e.action);
+          pbLog('Record:', JSON.stringify(e.record));
+          
+          // You can add additional logic here if needed
+        }, {
+          // Optional: other options like filter, expand, custom headers, etc.
+        });
+
+      } catch (error) {
+        pbLog('Authentication failed:', error.message);
+        console.error('Authentication failed:', error);
+      }
+    }
+  </script>
+</body>
 </html>
