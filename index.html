@@ -2,253 +2,278 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MetaAPI Real-Time Trading Dashboard</title>
+  <title>Trading Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/pocketbase@0.10.0/dist/pocketbase.umd.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
+    :root {
+      --primary-color: #3498db;
+      --secondary-color: #2ecc71;
+      --background-light: #f4f6f7;
+      --text-color: #2c3e50;
+      --card-background: #ffffff;
+    }
+
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
       display: flex;
       height: 100vh;
+      background-color: var(--background-light);
+      color: var(--text-color);
+      line-height: 1.6;
     }
+
     .left-panel, .right-panel {
       width: 50%;
       padding: 20px;
-      box-sizing: border-box;
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
     }
+
     .left-panel {
-      background-color: #f0f0f0;
-      border-right: 1px solid #ddd;
+      background-color: #ffffff;
+      border-right: 1px solid #e0e0e0;
     }
-    .right-panel {
-      background-color: #f9f9f9;
-    }
-    #info, #pocketbase-logs {
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 20px;
+    }
+
+    .panel-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-color);
+    }
+
+    .connection-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-grow: 1;
+    }
+
+    input, button {
       padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      font-size: 0.9rem;
+    }
+
+    .btn {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .btn-secondary {
+      background-color: var(--secondary-color);
+    }
+
+    .logs-container {
+      background-color: var(--card-background);
+      border-radius: 8px;
+      padding: 15px;
       max-height: 300px;
       overflow-y: auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .section {
-      margin-top: 20px;
-      padding: 15px;
-      border: 1px solid #eee;
-      border-radius: 5px;
-      background-color: #fff;
-    }
-    .position-card {
-      padding: 10px;
-      margin: 10px 0;
-      border-left: 4px solid #4CAF50;
-      background-color: #e9f7ef;
+
+    .log-entry {
+      background-color: #f9f9f9;
+      margin-bottom: 5px;
+      padding: 5px;
       border-radius: 4px;
+      font-size: 0.8rem;
     }
-    .position-card.updated {
-      animation: highlight 2s ease-out;
+
+    .position-card {
+      background-color: var(--card-background);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
     }
-    @keyframes highlight {
-      0% {background-color: #ffff99;}
-      100% {background-color: #e9f7ef;}
+
+    .position-card:hover {
+      transform: translateY(-5px);
     }
-    #pocketbase-connect {
-      margin-bottom: 20px;
+
+    .profit-positive {
+      color: var(--secondary-color);
+    }
+
+    .profit-negative {
+      color: #e74c3c;
     }
   </style>
-  <script src="https://unpkg.com/pocketbase@0.10.0/dist/pocketbase.umd.js"></script>
 </head>
 <body>
   <div class="left-panel">
-    <h1>MetaAPI Real-Time Trading Dashboard</h1>
-    <div id="info"></div>
+    <div class="panel-header">
+      <h1 class="panel-title">MetaAPI Trading Dashboard</h1>
+    </div>
+
+    <div class="connection-container">
+      <div class="input-group">
+        <label>MetaAPI Token</label>
+        <input type="text" id="metaapi-token" placeholder="Enter MetaAPI Token">
+      </div>
+      <button id="connect-metaapi" class="btn">Connect MetaAPI</button>
+    </div>
+
+    <div class="logs-container" id="info"></div>
     
-    <div class="section">
-      <h2>Real-Time Positions</h2>
+    <div>
+      <h2 class="panel-title">Real-Time Positions</h2>
       <div id="positions-container"></div>
     </div>
   </div>
 
   <div class="right-panel">
-    <h1>PocketBase Real-Time Connection</h1>
-    <div id="pocketbase-connect">
-      <button id="connect-pocketbase">Connect to PocketBase</button>
+    <div class="panel-header">
+      <h1 class="panel-title">PocketBase Connection</h1>
     </div>
-    <div class="section">
-      <h2>PocketBase Logs</h2>
-      <div id="pocketbase-logs"></div>
+
+    <div class="connection-container">
+      <button id="connect-pocketbase" class="btn btn-secondary">Connect PocketBase</button>
     </div>
+
+    <div class="logs-container" id="pocketbase-logs"></div>
   </div>
 
   <script src="https://unpkg.com/metaapi.cloud-sdk"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // PocketBase Script
+      // PocketBase Setup
       const pb = new PocketBase('https://databases-pocketbase.rmtdmw.shanmuganathan.dev');
       const pocketbaseLogs = document.getElementById('pocketbase-logs');
-      const connectButton = document.getElementById('connect-pocketbase');
+      const connectPocketbaseButton = document.getElementById('connect-pocketbase');
 
-      function pbLog() {
+      function pbLog(message) {
         const el = document.createElement('div');
-        el.innerHTML = [].slice.call(arguments).join(' ');
+        el.className = 'log-entry';
+        el.textContent = message;
         pocketbaseLogs.appendChild(el);
-        console.log(...arguments);
+        console.log(message);
       }
 
       async function authenticateAndSubscribe() {
         try {
-          // Authenticate the user
           const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
+          pbLog('User Authenticated: ' + JSON.stringify(authData));
 
-          pbLog('User Authenticated:', JSON.stringify(authData));
-
-          // Subscribe to changes in the longShort collection
           pb.collection('longShort_duplicate').subscribe('*', function (e) {
-            pbLog('Action:', e.action);
-            pbLog('Record:', JSON.stringify(e.record));
-          }, {
-            // Optional: other options like filter, expand, custom headers, etc.
+            pbLog(`Action: ${e.action}, Record: ${JSON.stringify(e.record)}`);
           });
 
         } catch (error) {
-          pbLog('Authentication failed:', error.message);
-          console.error('Authentication failed:', error);
+          pbLog('Authentication failed: ' + error.message);
         }
       }
 
-      // Add event listener to the connect button
-      connectButton.addEventListener('click', authenticateAndSubscribe);
+      connectPocketbaseButton.addEventListener('click', authenticateAndSubscribe);
 
-      // MetaAPI Script
+      // MetaAPI Setup
       const infoElement = document.getElementById('info');
       const positionsContainer = document.getElementById('positions-container');
-      
-      function log() {
-        if(typeof arguments[1] === 'object'){
-          arguments[1] = JSON.stringify(arguments[1]);
-        }
+      const connectMetaAPIButton = document.getElementById('connect-metaapi');
+      const metaAPITokenInput = document.getElementById('metaapi-token');
+
+      function log(message) {
         const el = document.createElement('div');
-        el.innerHTML = [].join.call(arguments, ' ');
+        el.className = 'log-entry';
+        el.textContent = message;
         infoElement.appendChild(el);
-        console.log(...arguments);
+        console.log(message);
       }
-      
+
       function displayPositions(positions) {
         positionsContainer.innerHTML = '';
         if (Object.keys(positions).length === 0) {
           positionsContainer.innerHTML = '<p>No open positions</p>';
           return;
         }
-        
+
         for (const id in positions) {
           const position = positions[id];
           const positionCard = document.createElement('div');
           positionCard.className = 'position-card';
-          positionCard.id = `position-${id}`;
           
           const profit = parseFloat(position.profit);
-          const profitColor = profit >= 0 ? 'green' : 'red';
-          
+          const profitClass = profit >= 0 ? 'profit-positive' : 'profit-negative';
+
           positionCard.innerHTML = `
             <h3>${position.symbol}</h3>
             <p>Type: ${position.type}</p>
             <p>Volume: ${position.volume}</p>
             <p>Open Price: ${position.openPrice}</p>
-            <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
-            <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
-            <p>Swap: ${position.swap}</p>
+            <p>Current Price: ${position.currentPrice || 'N/A'}</p>
+            <p>Profit: <span class="${profitClass}">${profit.toFixed(2)} ${position.profit}</span></p>
             <p>Time: ${new Date(position.time).toLocaleString()}</p>
           `;
-          
+
           positionsContainer.appendChild(positionCard);
         }
       }
-      
-      function highlightUpdatedPosition(positionId) {
-        const element = document.getElementById(`position-${positionId}`);
-        if (element) {
-          element.classList.remove('updated');
-          void element.offsetWidth; // Trigger reflow to restart animation
-          element.classList.add('updated');
-        }
-      }
-      
-      const token = 'eyJhs';
-      const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
-      const api = new MetaApi.default(token);
-      
-      async function testMetaApiSynchronization() {
+
+      async function testMetaApiSynchronization(token) {
         try {
-          const account = await api.metatraderAccountApi.getAccount(accountId);
-          log('Waiting for API server to connect to broker (may take couple of minutes)');
-          await account.waitConnected();
+          const api = new MetaApi.default(token);
+          const accounts = await api.metatraderAccountApi.getAccounts();
           
-          // connect to MetaApi API
-          let connection = account.getStreamingConnection();
-          
-          // Create a base handler that handles any method call
-          const baseHandler = {
-            get: function(target, prop) {
-              if (prop in target) {
-                return target[prop];
-              }
-              return function() {};
-            }
-          };
-          
-          // Your actual handlers for positions
-          const myHandlers = {
-            onPositionsReplaced: function(positions) {
-              log('Positions replaced');
-              displayPositions(positions);
-            },
-            onPositionUpdated: function(position) {
-              log('Position updated', position.id);
-              // Update the specific position in the display
-              let terminalState = connection.terminalState;
-              displayPositions(terminalState.positions);
-              highlightUpdatedPosition(position.id);
-            },
-            onPositionRemoved: function(positionId) {
-              log('Position removed', positionId);
-              // Refresh positions display
-              let terminalState = connection.terminalState;
-              displayPositions(terminalState.positions);
-            }
-          };
-          
-          // Create a proxy that will handle all method calls
-          const listener = new Proxy(myHandlers, baseHandler);
-          
-          // Add the listener to the connection
-          connection.addSynchronizationListener(listener);
-          
+          if (accounts.length === 0) {
+            log('No MetaTrader accounts found');
+            return;
+          }
+
+          const account = accounts[0];
+          log(`Connected to account: ${account.id}`);
+
+          const connection = account.getStreamingConnection();
           await connection.connect();
-          
-          // wait until terminal state synchronized to the local state
-          log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
           await connection.waitSynchronized();
-          
-          // access local copy of terminal state
-          log('Testing terminal state access');
-          let terminalState = connection.terminalState;
-          log('connected:', terminalState.connected);
-          log('connected to broker:', terminalState.connectedToBroker);
-          log('account information:', terminalState.accountInformation);
-          
-          // Initial display of positions
+
+          const terminalState = connection.terminalState;
           displayPositions(terminalState.positions);
-          
-          log('Real-time position tracking is active');
-          
-        } catch (err) {
-          log('Error:', err.message);
-          console.error(err);
+
+          log('Real-time tracking activated');
+
+        } catch (error) {
+          log('Connection error: ' + error.message);
         }
       }
-      
-      testMetaApiSynchronization();
+
+      connectMetaAPIButton.addEventListener('click', () => {
+        const token = metaAPITokenInput.value.trim();
+        if (token) {
+          testMetaApiSynchronization(token);
+        } else {
+          log('Please enter a valid MetaAPI token');
+        }
+      });
     });
   </script>
 </body>
