@@ -287,59 +287,69 @@
 
       // Trade Execution Function
       async function executeTrade(type) {
-        if (!currentConnection) {
-          log('Please connect to MetaAPI first');
-          return;
-        }
+    if (!currentConnection) {
+        log('Please connect to MetaAPI first');
+        return;
+    }
 
-        if (isExecutingTrade) {
-          log('Trade execution in progress, please wait...');
-          return;
-        }
+    if (isExecutingTrade) {
+        log('Trade execution in progress, please wait...');
+        return;
+    }
 
-        isExecutingTrade = true;
+    isExecutingTrade = true;
 
-        try {
-          const symbol = tradeSymbolInput.value.trim();
-          const volume = parseFloat(tradeVolumeInput.value);
-          
-          if (!symbol || isNaN(volume) || volume <= 0) {
+    try {
+        const symbol = tradeSymbolInput.value.trim();
+        const volume = parseFloat(tradeVolumeInput.value);
+        
+        if (!symbol || isNaN(volume) || volume <= 0) {
             log('Invalid symbol or volume');
             isExecutingTrade = false;
             return;
-          }
+        }
 
-          const comment = `${type.toUpperCase()} trade`;
-          const clientId = `TE_${symbol}_${Date.now()}`;
+        // Close existing positions for the symbol before creating a new order
+        try {
+            log(`Attempting to close all ${symbol} positions`);
+            const closeResult = await currentConnection.closePositionsBySymbol(symbol);
+            log(`Positions closed result: ${JSON.stringify(closeResult)}`);
+        } catch (closeError) {
+            log(`Error closing positions: ${closeError.message}`);
+            // Continue with trade execution even if closing fails
+        }
 
-          let result;
-          if (type === 'buy') {
+        const comment = `${type.toUpperCase()} trade`;
+        const clientId = `TE_${symbol}_${Date.now()}`;
+
+        let result;
+        if (type === 'buy') {
             log('Executing BUY order...');
             result = await currentConnection.createMarketBuyOrder(symbol, volume, {
-              comment: comment, 
-              clientId: clientId
+                comment: comment, 
+                clientId: clientId
             });
             log(`Market Buy Order created: ${JSON.stringify(result)}`);
-          } else {
+        } else {
             log('Executing SELL order...');
             result = await currentConnection.createMarketSellOrder(symbol, volume, {
-              comment: comment, 
-              clientId: clientId
+                comment: comment, 
+                clientId: clientId
             });
             log(`Market Sell Order created: ${JSON.stringify(result)}`);
-          }
-
-          // Check the result
-          if (result.stringCode) {
-            log(`Trade successful, result code is ${result.stringCode}`);
-          }
-        } catch (error) {
-          log(`Error executing ${type} trade: ${error.message}`);
-          console.error(error);
-        } finally {
-          isExecutingTrade = false;
         }
-      }
+
+        // Check the result
+        if (result.stringCode) {
+            log(`Trade successful, result code is ${result.stringCode}`);
+        }
+    } catch (error) {
+        log(`Error executing ${type} trade: ${error.message}`);
+        console.error(error);
+    } finally {
+        isExecutingTrade = false;
+    }
+}
 
       // PocketBase Authentication and Subscription
       async function authenticateAndSubscribe() {
