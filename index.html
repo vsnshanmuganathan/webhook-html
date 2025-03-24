@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Local Webhook Receiver</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #webhookUrl {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        #logs {
+            border: 1px solid #ccc;
+            height: 400px;
+            overflow-y: scroll;
+            padding: 10px;
+            background-color: #f4f4f4;
+            font-family: monospace;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        .log-entry.received {
+            color: green;
+        }
+        .log-entry.error {
+            color: red;
+        }
+        #testForm {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Local Webhook Receiver</h1>
+
+    <div>
+        <h2>Webhook URL:</h2>
+        <input type="text" id="webhookUrl" readonly>
+        <button onclick="copyWebhookUrl()">Copy URL</button>
+    </div>
+
+    <div id="testForm">
+        <h3>Test Webhook</h3>
+        <textarea id="payloadInput" rows="4" cols="50" placeholder="Enter JSON payload"></textarea>
+        <br>
+        <button onclick="simulateWebhook()">Send Test Webhook</button>
+    </div>
+
+    <h2>Logs:</h2>
+    <div id="logs"></div>
+
+    <script>
+        class WebhookReceiver {
+            constructor() {
+                this.webhookId = this.generateUniqueId();
+                this.logs = [];
+                this.initializeWebhook();
+            }
+
+            generateUniqueId() {
+                return Math.random().toString(36).substring(2, 15) + 
+                       Math.random().toString(36).substring(2, 15);
+            }
+
+            initializeWebhook() {
+                // Set webhook URL
+                const webhookUrl = `${window.location.origin}/#webhook/${this.webhookId}`;
+                document.getElementById('webhookUrl').value = webhookUrl;
+
+                // Listen for hash change events (simulating webhook)
+                window.addEventListener('hashchange', this.handleWebhookTrigger.bind(this));
+            }
+
+            handleWebhookTrigger(event) {
+                const hash = window.location.hash;
+                if (hash.startsWith(`#webhook/${this.webhookId}`)) {
+                    try {
+                        // Extract payload from hash
+                        const payloadStr = decodeURIComponent(hash.split('/').slice(2).join('/'));
+                        const payload = JSON.parse(payloadStr);
+                        
+                        this.logWebhook(payload, 'received');
+                    } catch (error) {
+                        this.logWebhook({
+                            error: 'Invalid payload',
+                            details: error.message
+                        }, 'error');
+                    }
+                }
+            }
+
+            logWebhook(payload, type = 'received') {
+                const logContainer = document.getElementById('logs');
+                const logEntry = document.createElement('div');
+                logEntry.classList.add('log-entry', type);
+                
+                // Format log entry with timestamp
+                const timestamp = new Date().toISOString();
+                logEntry.textContent = `[${timestamp}] ${JSON.stringify(payload, null, 2)}`;
+                
+                // Add to logs container
+                logContainer.appendChild(logEntry);
+                
+                // Scroll to bottom
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // Store in logs array
+                this.logs.push({
+                    timestamp,
+                    payload,
+                    type
+                });
+            }
+
+            simulateWebhook() {
+                try {
+                    // Get payload from input
+                    const payloadInput = document.getElementById('payloadInput');
+                    const payload = JSON.parse(payloadInput.value);
+
+                    // Trigger webhook by changing hash
+                    window.location.hash = `webhook/${this.webhookId}/${encodeURIComponent(JSON.stringify(payload))}`;
+                } catch (error) {
+                    alert('Invalid JSON payload');
+                }
+            }
+        }
+
+        // Initialize webhook receiver
+        const webhookReceiver = new WebhookReceiver();
+
+        // Utility function to copy webhook URL
+        function copyWebhookUrl() {
+            const webhookUrlInput = document.getElementById('webhookUrl');
+            webhookUrlInput.select();
+            document.execCommand('copy');
+            alert('Webhook URL copied to clipboard!');
+        }
+    </script>
+</body>
+</html>
