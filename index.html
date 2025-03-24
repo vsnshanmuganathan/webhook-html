@@ -1,393 +1,540 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Advanced Trading Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="favicon.png">
-    <style>
-        :root {
-            --bg-primary: #f4f7f6;
-            --bg-secondary: #ffffff;
-            --text-primary: #2c3e50;
-            --text-secondary: #7f8c8d;
-            --accent-color: #3498db;
-            --accent-color-hover: #2980b9;
-            --border-color: #e0e6e9;
-            --success-color: #2ecc71;
-            --danger-color: #e74c3c;
-        }
+  <meta charset="UTF-8">
+  <title>Trading Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/pocketbase@0.10.0/dist/pocketbase.umd.js"></script>
+  <style>
+    :root {
+      --bg-primary: #f4f7f6;
+      --bg-secondary: #ffffff;
+      --text-primary: #2c3e50;
+      --text-secondary: #7f8c8d;
+      --accent-color: #3498db;
+      --accent-color-hover: #2980b9;
+      --border-color: #e0e6e9;
+    }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            scrollbar-width: thin;
-            scrollbar-color: var(--accent-color) var(--bg-primary);
-        }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        *::-webkit-scrollbar {
-            width: 8px;
-        }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
 
-        *::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
+    body {
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
 
-        *::-webkit-scrollbar-thumb {
-            background-color: var(--accent-color);
-            border-radius: 20px;
-        }
+    .left-panel, .right-panel {
+      width: 50%;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow: hidden;
+    }
 
-        html, body {
-            height: 100%;
-            overflow: hidden;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-        }
+    .left-panel {
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+    }
 
-        .dashboard {
-            display: flex;
-            height: 100vh;
-        }
+    .section {
+      background-color: var(--bg-secondary);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
 
-        .panel {
-            width: 50%;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            background-color: var(--bg-secondary);
-            border-right: 1px solid var(--border-color);
-        }
+    .positions-section {
+      flex-grow: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
 
-        .connection-section {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            background-color: var(--bg-secondary);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+    .positions-container {
+      flex-grow: 1;
+      overflow-y: auto;
+    }
 
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
 
-        .input-group label {
-            font-weight: 600;
-            color: var(--text-secondary);
-        }
+    .input-group label {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
 
-        .input-group input {
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-        }
+    .input-group input {
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.3s ease;
+    }
 
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
 
-        .btn-primary {
-            background-color: var(--accent-color);
-            color: white;
-        }
+    .btn {
+      padding: 12px 20px;
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background-color 0.3s ease;
+    }
 
-        .btn-success {
-            background-color: var(--success-color);
-            color: white;
-        }
+    .btn:hover {
+      background-color: var(--accent-color-hover);
+    }
 
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-        }
+    .right-panel-logs {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      height: calc(100vh - 140px);
+    }
 
-        .btn:hover {
-            opacity: 0.9;
-        }
+    .logs-container {
+      flex: 1;
+      overflow-y: auto;
+      background-color: var(--bg-secondary);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      padding: 15px;
+    }
 
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+    .logs-container h2 {
+      margin-bottom: 15px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 10px;
+    }
 
-        .positions-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-        }
+    .positions-table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: var(--bg-secondary);
+    }
 
-        .positions-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+    .positions-table th {
+      position: sticky;
+      top: 0;
+      background-color: #f8f9fa;
+      color: var(--text-secondary);
+      font-weight: 600;
+      padding: 12px;
+      text-align: left;
+      border-bottom: 2px solid var(--border-color);
+      z-index: 10;
+    }
 
-        .positions-table th {
-            position: sticky;
-            top: 0;
-            background-color: var(--bg-primary);
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
+    .positions-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
 
-        .positions-table td {
-            padding: 12px;
-            border-bottom: 1px solid var(--border-color);
-        }
+    .profit-positive {
+      color: #2ecc71;
+    }
 
-        .log-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            background-color: #f4f4f4;
-            padding: 15px;
-            border-radius: 8px;
-        }
+    .profit-negative {
+      color: #e74c3c;
+    }
 
-        .log-entry {
-            margin-bottom: 8px;
-            padding: 8px;
-            background-color: #ffffff;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-
-        .trade-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-    </style>
+    .log-entry {
+      background-color: #f1f3f4;
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      word-wrap: break-word;
+    }
+  </style>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="panel">
-            <div class="connection-section">
-                <h2>MetaAPI Connection</h2>
-                <div class="input-group">
-                    <label>Token</label>
-                    <input type="text" id="metaapi-token" placeholder="Enter MetaAPI Token">
-                </div>
-                <div class="input-group">
-                    <label>Account ID</label>
-                    <input type="text" id="metaapi-account-id" placeholder="Enter Account ID">
-                </div>
-                <button id="connect-metaapi" class="btn btn-primary">Connect MetaAPI</button>
-            </div>
-
-            <div class="connection-section">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2>Trading Controls</h2>
-                    <div class="trade-controls">
-                        <input type="text" id="trade-symbol" value="BTCUSDm" placeholder="Symbol">
-                        <input type="number" id="trade-volume" value="0.01" step="0.01" placeholder="Volume">
-                        <button id="buy-btn" class="btn btn-success">Buy</button>
-                        <button id="sell-btn" class="btn btn-danger">Sell</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="connection-section positions-container">
-                <h2>Open Positions</h2>
-                <table class="positions-table" id="positions-table">
-                    <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Type</th>
-                            <th>Volume</th>
-                            <th>Open Price</th>
-                            <th>Current Price</th>
-                            <th>Profit</th>
-                            <th>Time</th>
-                        </tr>
-                    </thead>
-                    <tbody id="positions-tbody">
-                        <tr><td colspan="7">No open positions</td></tr>
-                    </tbody>
-                </table>
-            </div>
+  <div class="left-panel">
+    <div class="section">
+      <h2>MetaAPI Connection</h2>
+      <div class="input-group">
+        <label for="metaapi-token">MetaAPI Token</label>
+        <input type="text" id="metaapi-token" placeholder="Enter MetaAPI Token">
+      </div>
+      <div class="input-group">
+        <label for="metaapi-account-id">Account ID</label>
+        <input type="text" id="metaapi-account-id" placeholder="Enter MetaAPI Account ID">
+      </div>
+      <button id="connect-metaapi" class="btn">Connect MetaAPI</button>
+    </div>
+    
+    <div class="section positions-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Real-Time Positions</h2>
+        <div class="trade-controls">
+          <input type="text" id="trade-symbol" placeholder="Symbol (e.g., BTCUSDm)" value="BTCUSDm">
+          <input type="number" id="trade-volume" placeholder="Volume" value="0.01" step="0.01">
+          <button id="buy-btn" class="btn" style="background-color: #2ecc71;">Buy</button>
+          <button id="sell-btn" class="btn" style="background-color: #e74c3c;">Sell</button>
         </div>
+      </div>
+      <div id="positions-container" class="positions-container">
+        <table class="positions-table" id="positions-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Type</th>
+              <th>Volume</th>
+              <th>Open Price</th>
+              <th>Current Price</th>
+              <th>Profit</th>
+              <th>Swap</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="positions-tbody">
+            <tr><td colspan="8">No open positions</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-        <div class="panel">
-            <div class="connection-section">
-                <h2>PocketBase Connection</h2>
-                <button id="connect-pocketbase" class="btn btn-primary">Connect PocketBase</button>
-            </div>
-
-            <div class="connection-section log-container" id="pocketbase-logs">
-                <h2>PocketBase Logs</h2>
-            </div>
-
-            <div class="connection-section log-container" id="metaapi-logs">
-                <h2>MetaAPI Logs</h2>
-            </div>
-        </div>
+  <div class="right-panel">
+    <div class="section">
+      <h2>PocketBase Connection</h2>
+      <button id="connect-pocketbase" class="btn">Connect to PocketBase</button>
     </div>
 
-    <script src="https://unpkg.com/pocketbase@0.10.0/dist/pocketbase.umd.js"></script>
-    <script src="https://unpkg.com/metaapi.cloud-sdk"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Configuration
-            const PB_URL = 'https://databases-pocketbase.rmtdmw.shanmuganathan.dev';
-            const PB_EMAIL = 'vsnshanmuga@gmail.com';
-            const PB_PASSWORD = 'lUzBWt5mB6PNC7t';
-            const DEFAULT_SYMBOL = 'BTCUSDm';
-            const DEFAULT_VOLUME = 0.01;
+    <div class="right-panel-logs">
+      <div class="logs-container">
+        <h2>PocketBase Logs</h2>
+        <div id="pocketbase-logs"></div>
+      </div>
+      <div class="logs-container">
+        <h2>MetaAPI Logs</h2>
+        <div id="info"></div>
+      </div>
+    </div>
+  </div>
 
-            // DOM Elements
-            const elements = {
-                metaApiToken: document.getElementById('metaapi-token'),
-                metaApiAccountId: document.getElementById('metaapi-account-id'),
-                connectMetaApi: document.getElementById('connect-metaapi'),
-                connectPocketBase: document.getElementById('connect-pocketbase'),
-                buyBtn: document.getElementById('buy-btn'),
-                sellBtn: document.getElementById('sell-btn'),
-                tradeSymbol: document.getElementById('trade-symbol'),
-                tradeVolume: document.getElementById('trade-volume'),
-                positionsTbody: document.getElementById('positions-tbody'),
-                pocketbaseLogs: document.getElementById('pocketbase-logs'),
-                metaApiLogs: document.getElementById('metaapi-logs')
-            };
+  <script src="https://unpkg.com/metaapi.cloud-sdk"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // PocketBase Script
+      const pb = new PocketBase('https://databases-pocketbase.rmtdmw.shanmuganathan.dev');
+      const pocketbaseLogs = document.getElementById('pocketbase-logs');
+      const connectButton = document.getElementById('connect-pocketbase');
 
-            // State
-            let currentConnection = null;
-            const pb = new PocketBase(PB_URL);
+      // Trade and Connection Variables
+      let currentConnection = null;
+      const infoElement = document.getElementById('info');
+      const positionsTbody = document.getElementById('positions-tbody');
+      const connectMetaAPIButton = document.getElementById('connect-metaapi');
+      const metaAPITokenInput = document.getElementById('metaapi-token');
+      const metaAPIAccountIdInput = document.getElementById('metaapi-account-id');
+      
+      // Trade-related elements
+      const buyBtn = document.getElementById('buy-btn');
+      const sellBtn = document.getElementById('sell-btn');
+      const tradeSymbolInput = document.getElementById('trade-symbol');
+      const tradeVolumeInput = document.getElementById('trade-volume');
 
-            // Logging Utilities
-            const createLogEntry = (container, message, type = 'info') => {
-                const entry = document.createElement('div');
-                entry.classList.add('log-entry', `log-${type}`);
-                entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-                container.prepend(entry);
-            };
+      // Store processed record IDs to prevent duplicate executions
+      const processedRecords = new Set();
+      
+      // Flag to prevent multiple executions
+      let isExecutingTrade = false;
 
-            // Trade Execution
-            const executeTrade = async (type) => {
-                if (!currentConnection) {
-                    createLogEntry(elements.metaApiLogs, 'MetaAPI not connected', 'error');
-                    return;
-                }
+      // Logging Functions
+      function pbLog() {
+        const el = document.createElement('div');
+        el.innerHTML = [].slice.call(arguments).join(' ');
+        pocketbaseLogs.appendChild(el);
+        console.log(...arguments);
+      }
 
-                try {
-                    const symbol = elements.tradeSymbol.value.trim();
-                    const volume = parseFloat(elements.tradeVolume.value);
+      function log() {
+        if(typeof arguments[1] === 'object'){
+          arguments[1] = JSON.stringify(arguments[1]);
+        }
+        const el = document.createElement('div');
+        el.innerHTML = [].join.call(arguments, ' ');
+        infoElement.appendChild(el);
+        console.log(...arguments);
+      }
 
-                    if (!symbol || isNaN(volume) || volume <= 0) {
-                        createLogEntry(elements.metaApiLogs, 'Invalid trade parameters', 'error');
-                        return;
-                    }
+      // Trade Execution Function
+      async function executeTrade(type) {
+        if (!currentConnection) {
+          log('Please connect to MetaAPI first');
+          return;
+        }
 
-                    const tradeMethod = type === 'buy' 
-                        ? currentConnection.createMarketBuyOrder 
-                        : currentConnection.createMarketSellOrder;
+        if (isExecutingTrade) {
+          log('Trade execution in progress, please wait...');
+          return;
+        }
 
-                    const result = await tradeMethod.call(
-                        currentConnection, 
-                        symbol, 
-                        volume, 
-                        { 
-                            comment: `${type.toUpperCase()} Trade`, 
-                            clientId: `TRADE_${symbol}_${Date.now()}` 
-                        }
-                    );
+        isExecutingTrade = true;
 
-                    createLogEntry(
-                        elements.metaApiLogs, 
-                        `${type.toUpperCase()} Order Executed: ${JSON.stringify(result)}`, 
-                        'success'
-                    );
-                } catch (error) {
-                    createLogEntry(
-                        elements.metaApiLogs, 
-                        `Trade Error: ${error.message}`, 
-                        'error'
-                    );
-                }
-            };
+        try {
+          const symbol = tradeSymbolInput.value.trim();
+          const volume = parseFloat(tradeVolumeInput.value);
+          
+          if (!symbol || isNaN(volume) || volume <= 0) {
+            log('Invalid symbol or volume');
+            isExecutingTrade = false;
+            return;
+          }
 
-            // MetaAPI Connection
-            const connectMetaApi = async () => {
-                const token = elements.metaApiToken.value.trim();
-                const accountId = elements.metaApiAccountId.value.trim();
+          const comment = `${type.toUpperCase()} trade`;
+          const clientId = `TE_${symbol}_${Date.now()}`;
 
-                if (!token || !accountId) {
-                    createLogEntry(elements.metaApiLogs, 'Invalid MetaAPI credentials', 'error');
-                    return;
-                }
+          let result;
+          if (type === 'buy') {
+            log('Executing BUY order...');
+            result = await currentConnection.createMarketBuyOrder(symbol, volume, {
+              comment: comment, 
+              clientId: clientId
+            });
+            log(`Market Buy Order created: ${JSON.stringify(result)}`);
+          } else {
+            log('Executing SELL order...');
+            result = await currentConnection.createMarketSellOrder(symbol, volume, {
+              comment: comment, 
+              clientId: clientId
+            });
+            log(`Market Sell Order created: ${JSON.stringify(result)}`);
+          }
 
-                try {
-                    const api = new MetaApi.default(token);
-                    const account = await api.metatraderAccountApi.getAccount(accountId);
-                    
-                    currentConnection = account.getStreamingConnection();
-                    await currentConnection.connect();
-                    await currentConnection.waitSynchronized();
+          // Check the result
+          if (result.stringCode) {
+            log(`Trade successful, result code is ${result.stringCode}`);
+          }
+        } catch (error) {
+          log(`Error executing ${type} trade: ${error.message}`);
+          console.error(error);
+        } finally {
+          isExecutingTrade = false;
+        }
+      }
 
-                    createLogEntry(elements.metaApiLogs, 'MetaAPI Connected Successfully', 'success');
-                    
-                    // Enable trade buttons
-                    elements.buyBtn.disabled = false;
-                    elements.sellBtn.disabled = false;
-                } catch (error) {
-                    createLogEntry(elements.metaApiLogs, `Connection Failed: ${error.message}`, 'error');
-                }
-            };
+      // PocketBase Authentication and Subscription
+      async function authenticateAndSubscribe() {
+        try {
+          // Authenticate the user
+          const authData = await pb.collection('users').authWithPassword('vsnshanmuga@gmail.com', 'lUzBWt5mB6PNC7t');
 
-            // PocketBase Connection
-            const connectPocketBase = async () => {
-                try {
-                    await pb.collection('users').authWithPassword(PB_EMAIL, PB_PASSWORD);
-                    
-                    createLogEntry(elements.pocketbaseLogs, 'PocketBase Authenticated', 'success');
-                    
-                    pb.collection('longShort_duplicate').subscribe('*', (e) => {
-                        createLogEntry(
-                            elements.pocketbaseLogs, 
-                            `Event: ${e.action}, Record: ${JSON.stringify(e.record)}`
-                        );
+          pbLog('User Authenticated:', JSON.stringify(authData));
 
-                        // Automatic trading logic
-                        if (e.action === 'create' && currentConnection) {
-                            executeTrade('buy');
-                        }
-                    });
-                } catch (error) {
-                    createLogEntry(elements.pocketbaseLogs, `Auth Failed: ${error.message}`, 'error');
-                }
-            };
+          // Clear any existing subscription
+          try {
+            pb.collection('longShort_duplicate').unsubscribe();
+          } catch (e) {
+            // Ignore errors from unsubscribe
+          }
 
-            // Event Listeners
-            elements.connectMetaApi.addEventListener('click', connectMetaApi);
-            elements.connectPocketBase.addEventListener('click', connectPocketBase);
-            elements.buyBtn.addEventListener('click', () => executeTrade('buy'));
-            elements.sellBtn.addEventListener('click', () => executeTrade('sell'));
+          // Subscribe to changes in the longShort collection
+          pb.collection('longShort_duplicate').subscribe('*', function (e) {
+            // Log the event
+            pbLog('Action:', e.action);
+            pbLog('Record ID:', e.record.id);
+            pbLog('Record:', JSON.stringify(e.record));
 
-            // Initial Setup
-            elements.buyBtn.disabled = true;
-            elements.sellBtn.disabled = true;
-            elements.tradeSymbol.value = DEFAULT_SYMBOL;
-            elements.tradeVolume.value = DEFAULT_VOLUME;
-        });
-    </script>
+            // Only process 'create' actions and only if we have a connection
+            if (e.action !== 'create' || !currentConnection) {
+              return;
+            }
+
+            // Check if we've already processed this record
+            if (processedRecords.has(e.record.id)) {
+              pbLog(`Already processed record ${e.record.id}, skipping`);
+              return;
+            }
+
+            // Add the record to our processed set
+            processedRecords.add(e.record.id);
+            
+            // Limit the size of the set to prevent memory issues
+            if (processedRecords.size > 100) {
+              const firstItem = processedRecords.values().next().value;
+              processedRecords.delete(firstItem);
+            }
+
+            // Execute the appropriate trade based on the longShort value
+            if (e.record.longShort === 'UT Long') {
+              pbLog(`Processing Long signal for record ${e.record.id}, executing BUY`);
+              executeTrade('buy');
+            } else if (e.record.longShort === 'UT Short') {
+              pbLog(`Processing Short signal for record ${e.record.id}, executing SELL`);
+              executeTrade('sell');
+            } else {
+              pbLog(`Unknown longShort value: ${e.record.longShort}, no action taken`);
+            }
+          });
+
+          pbLog('Successfully subscribed to longShort_duplicate collection');
+
+        } catch (error) {
+          pbLog('Authentication failed:', error.message);
+          console.error('Authentication failed:', error);
+        }
+      }
+
+      // Position Display Function
+      function displayPositions(positions) {
+        positionsTbody.innerHTML = '';
+        
+        if (Object.keys(positions).length === 0) {
+          const noPositionsRow = document.createElement('tr');
+          noPositionsRow.innerHTML = '<td colspan="8">No open positions</td>';
+          positionsTbody.appendChild(noPositionsRow);
+          return;
+        }
+        
+        for (const id in positions) {
+          const position = positions[id];
+          const positionRow = document.createElement('tr');
+          
+          const profit = parseFloat(position.profit);
+          const profitClass = profit >= 0 ? 'profit-positive' : 'profit-negative';
+          
+          positionRow.innerHTML = `
+            <td>${position.symbol}</td>
+            <td>${position.type}</td>
+            <td>${position.volume}</td>
+            <td>${position.openPrice}</td>
+            <td>${position.currentPrice || 'N/A'}</td>
+            <td class="${profitClass}">${profit.toFixed(2)} ${position.profit}</td>
+            <td>${position.swap}</td>
+            <td>${new Date(position.time).toLocaleString()}</td>
+          `;
+          
+          positionsTbody.appendChild(positionRow);
+        }
+      }
+
+      // MetaAPI Synchronization Function
+      async function testMetaApiSynchronization(token, accountId) {
+        try {
+          const api = new MetaApi.default(token);
+          
+          // Get the specified account
+          const account = await api.metatraderAccountApi.getAccount(accountId);
+          log('Waiting for API server to connect to broker (may take couple of minutes)');
+          await account.waitConnected();
+          
+          // connect to MetaApi API
+          currentConnection = account.getStreamingConnection();
+          
+          // Create a base handler that handles any method call
+          const baseHandler = {
+            get: function(target, prop) {
+              if (prop in target) {
+                return target[prop];
+              }
+              return function() {};
+            }
+          };
+          
+          // Your actual handlers for positions
+          const myHandlers = {
+            onPositionsReplaced: function(positions) {
+              log('Positions replaced');
+              displayPositions(positions);
+            },
+            onPositionUpdated: function(position) {
+              log('Position updated', position.id);
+              // Update the specific position in the display
+              let terminalState = currentConnection.terminalState;
+              displayPositions(terminalState.positions);
+            },
+            onPositionRemoved: function(positionId) {
+              log('Position removed', positionId);
+              // Refresh positions display
+              let terminalState = currentConnection.terminalState;
+              displayPositions(terminalState.positions);
+            }
+          };
+          
+          // Create a proxy that will handle all method calls
+          const listener = new Proxy(myHandlers, baseHandler);
+          
+          // Add the listener to the connection
+          currentConnection.addSynchronizationListener(listener);
+          
+          await currentConnection.connect();
+          
+          // wait until terminal state synchronized to the local state
+          log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
+          await currentConnection.waitSynchronized();
+          
+          // access local copy of terminal state
+          log('Testing terminal state access');
+          let terminalState = currentConnection.terminalState;
+          log('connected:', terminalState.connected);
+          log('connected to broker:', terminalState.connectedToBroker);
+          log('account information:', terminalState.accountInformation);
+          
+          // Initial display of positions
+          displayPositions(terminalState.positions);
+          
+          log('Real-time position tracking is active');
+          
+          // Enable trade buttons
+          buyBtn.disabled = false;
+          sellBtn.disabled = false;
+          
+        } catch (err) {
+          log('Error:', err.message);
+          console.error(err);
+        }
+      }
+      
+      // Event Listeners
+      connectButton.addEventListener('click', authenticateAndSubscribe);
+      
+      connectMetaAPIButton.addEventListener('click', () => {
+        const token = metaAPITokenInput.value.trim();
+        const accountId = metaAPIAccountIdInput.value.trim();
+        
+        if (token && accountId) {
+          testMetaApiSynchronization(token, accountId);
+        } else {
+          log('Please enter a valid MetaAPI token and account ID');
+        }
+      });
+
+      // Trade button event listeners
+      buyBtn.addEventListener('click', () => executeTrade('buy'));
+      sellBtn.addEventListener('click', () => executeTrade('sell'));
+
+      // Initially disable trade buttons
+      buyBtn.disabled = true;
+      sellBtn.disabled = true;
+    });
+  </script>
 </body>
 </html>
