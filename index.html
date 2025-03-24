@@ -1,150 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Local Webhook Receiver</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        #webhookUrl {
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        #logs {
-            border: 1px solid #ccc;
-            height: 400px;
-            overflow-y: scroll;
-            padding: 10px;
-            background-color: #f4f4f4;
-            font-family: monospace;
-        }
-        .log-entry {
-            margin-bottom: 5px;
-            word-wrap: break-word;
-        }
-        .log-entry.received {
-            color: green;
-        }
-        .log-entry.error {
-            color: red;
-        }
-        #testForm {
-            margin-top: 20px;
-            border: 1px solid #ddd;
-            padding: 15px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>MetaAPI Real-Time Trading</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    #info {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .section {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #eee;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .position-card {
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 4px solid #4CAF50;
+      background-color: #e9f7ef;
+      border-radius: 4px;
+    }
+    .position-card.updated {
+      animation: highlight 2s ease-out;
+    }
+    @keyframes highlight {
+      0% {background-color: #ffff99;}
+      100% {background-color: #e9f7ef;}
+    }
+  </style>
 </head>
 <body>
-    <h1>Local Webhook Receiver</h1>
-
-    <div>
-        <h2>Webhook URL:</h2>
-        <input type="text" id="webhookUrl" readonly>
-        <button onclick="copyWebhookUrl()">Copy URL</button>
-    </div>
-
-    <div id="testForm">
-        <h3>Test Webhook</h3>
-        <textarea id="payloadInput" rows="4" cols="50" placeholder="Enter JSON payload"></textarea>
-        <br>
-        <button onclick="simulateWebhook()">Send Test Webhook</button>
-    </div>
-
-    <h2>Logs:</h2>
-    <div id="logs"></div>
-
-    <script>
-        class WebhookReceiver {
-            constructor() {
-                this.webhookId = this.generateUniqueId();
-                this.logs = [];
-                this.initializeWebhook();
-            }
-
-            generateUniqueId() {
-                return Math.random().toString(36).substring(2, 15) + 
-                       Math.random().toString(36).substring(2, 15);
-            }
-
-            initializeWebhook() {
-                // Set webhook URL
-                const webhookUrl = `${window.location.origin}/#webhook/${this.webhookId}`;
-                document.getElementById('webhookUrl').value = webhookUrl;
-
-                // Listen for hash change events (simulating webhook)
-                window.addEventListener('hashchange', this.handleWebhookTrigger.bind(this));
-            }
-
-            handleWebhookTrigger(event) {
-                const hash = window.location.hash;
-                if (hash.startsWith(`#webhook/${this.webhookId}`)) {
-                    try {
-                        // Extract payload from hash
-                        const payloadStr = decodeURIComponent(hash.split('/').slice(2).join('/'));
-                        const payload = JSON.parse(payloadStr);
-                        
-                        this.logWebhook(payload, 'received');
-                    } catch (error) {
-                        this.logWebhook({
-                            error: 'Invalid payload',
-                            details: error.message
-                        }, 'error');
-                    }
-                }
-            }
-
-            logWebhook(payload, type = 'received') {
-                const logContainer = document.getElementById('logs');
-                const logEntry = document.createElement('div');
-                logEntry.classList.add('log-entry', type);
-                
-                // Format log entry with timestamp
-                const timestamp = new Date().toISOString();
-                logEntry.textContent = `[${timestamp}] ${JSON.stringify(payload, null, 2)}`;
-                
-                // Add to logs container
-                logContainer.appendChild(logEntry);
-                
-                // Scroll to bottom
-                logContainer.scrollTop = logContainer.scrollHeight;
-                
-                // Store in logs array
-                this.logs.push({
-                    timestamp,
-                    payload,
-                    type
-                });
-            }
-
-            simulateWebhook() {
-                try {
-                    // Get payload from input
-                    const payloadInput = document.getElementById('payloadInput');
-                    const payload = JSON.parse(payloadInput.value);
-
-                    // Trigger webhook by changing hash
-                    window.location.hash = `webhook/${this.webhookId}/${encodeURIComponent(JSON.stringify(payload))}`;
-                } catch (error) {
-                    alert('Invalid JSON payload');
-                }
-            }
-        }
-
-        // Initialize webhook receiver
-        const webhookReceiver = new WebhookReceiver();
-
-        // Utility function to copy webhook URL
-        function copyWebhookUrl() {
-            const webhookUrlInput = document.getElementById('webhookUrl');
-            webhookUrlInput.select();
-            document.execCommand('copy');
-            alert('Webhook URL copied to clipboard!');
-        }
-    </script>
+  <h1>MetaAPI Real-Time Trading Dashboard</h1>
+  <div id="info"></div>
+  
+  <div class="section">
+    <h2>Real-Time Positions</h2>
+    <div id="positions-container"></div>
+  </div>
 </body>
+<script src="https://unpkg.com/metaapi.cloud-sdk"></script>
+<script>
+  const infoElement = document.getElementById('info');
+  const positionsContainer = document.getElementById('positions-container');
+  
+  function log() {
+    if(typeof arguments[1] === 'object'){
+      arguments[1] = JSON.stringify(arguments[1]);
+    }
+    const el = document.createElement('div');
+    el.innerHTML = [].join.call(arguments, ' ');
+    infoElement.appendChild(el);
+    console.log(...arguments);
+  }
+  
+  function displayPositions(positions) {
+    positionsContainer.innerHTML = '';
+    if (Object.keys(positions).length === 0) {
+      positionsContainer.innerHTML = '<p>No open positions</p>';
+      return;
+    }
+    
+    for (const id in positions) {
+      const position = positions[id];
+      const positionCard = document.createElement('div');
+      positionCard.className = 'position-card';
+      positionCard.id = `position-${id}`;
+      
+      const profit = parseFloat(position.profit);
+      const profitColor = profit >= 0 ? 'green' : 'red';
+      
+      positionCard.innerHTML = `
+        <h3>${position.symbol}</h3>
+        <p>Type: ${position.type}</p>
+        <p>Volume: ${position.volume}</p>
+        <p>Open Price: ${position.openPrice}</p>
+        <p>Current Price: <span id="current-price-${id}">${position.currentPrice || 'N/A'}</span></p>
+        <p>Profit: <span style="color:${profitColor}">${profit.toFixed(2)} ${position.profit}</span></p>
+        <p>Swap: ${position.swap}</p>
+        <p>Time: ${new Date(position.time).toLocaleString()}</p>
+      `;
+      
+      positionsContainer.appendChild(positionCard);
+    }
+  }
+  
+  function highlightUpdatedPosition(positionId) {
+    const element = document.getElementById(`position-${positionId}`);
+    if (element) {
+      element.classList.remove('updated');
+      void element.offsetWidth; // Trigger reflow to restart animation
+      element.classList.add('updated');
+    }
+  }
+  
+  const token = 'eyJhbGc';
+  const accountId = '6ac9ae51-d151-46d0-9ad4-d38354072a16';
+  const api = new MetaApi.default(token);
+  
+  async function testMetaApiSynchronization() {
+    try {
+      const account = await api.metatraderAccountApi.getAccount(accountId);
+      log('Waiting for API server to connect to broker (may take couple of minutes)');
+      await account.waitConnected();
+      
+      // connect to MetaApi API
+      let connection = account.getStreamingConnection();
+      
+      // Create a base handler that handles any method call
+      const baseHandler = {
+        get: function(target, prop) {
+          if (prop in target) {
+            return target[prop];
+          }
+          return function() {};
+        }
+      };
+      
+      // Your actual handlers for positions
+      const myHandlers = {
+        onPositionsReplaced: function(positions) {
+          log('Positions replaced');
+          displayPositions(positions);
+        },
+        onPositionUpdated: function(position) {
+          log('Position updated', position.id);
+          // Update the specific position in the display
+          let terminalState = connection.terminalState;
+          displayPositions(terminalState.positions);
+          highlightUpdatedPosition(position.id);
+        },
+        onPositionRemoved: function(positionId) {
+          log('Position removed', positionId);
+          // Refresh positions display
+          let terminalState = connection.terminalState;
+          displayPositions(terminalState.positions);
+        }
+      };
+      
+      // Create a proxy that will handle all method calls
+      const listener = new Proxy(myHandlers, baseHandler);
+      
+      // Add the listener to the connection
+      connection.addSynchronizationListener(listener);
+      
+      await connection.connect();
+      
+      // wait until terminal state synchronized to the local state
+      log('Waiting for SDK to synchronize to terminal state (may take some time depending on your history size)');
+      await connection.waitSynchronized();
+      
+      // access local copy of terminal state
+      log('Testing terminal state access');
+      let terminalState = connection.terminalState;
+      log('connected:', terminalState.connected);
+      log('connected to broker:', terminalState.connectedToBroker);
+      log('account information:', terminalState.accountInformation);
+      
+      // Initial display of positions
+      displayPositions(terminalState.positions);
+      
+      log('Real-time position tracking is active');
+      
+    } catch (err) {
+      log('Error:', err.message);
+      console.error(err);
+    }
+  }
+  
+  testMetaApiSynchronization();
+</script>
 </html>
